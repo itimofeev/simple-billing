@@ -1,8 +1,12 @@
 package main
 
-import "github.com/itimofeev/simple-billing/internal/app/repository"
+import (
+	"github.com/itimofeev/simple-billing/internal/app/repository"
+	"github.com/itimofeev/simple-billing/internal/app/service"
+)
 
 func main() {
-	store := repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
-	_ = store
+	repo := repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
+	srv := service.New(repo)
+	_ = srv
 }

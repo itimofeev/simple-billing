@@ -14,3 +14,5 @@ lint:
 	#curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.39.0
 	GO111MODULE=on GL_DEBUG=debug L_DEBUG=linters_output GOPACKAGESPRINTGOLISTERRORS=1 golangci-lint -v run
 
+test:
+	go test ./...
