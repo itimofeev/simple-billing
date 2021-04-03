@@ -9,3 +9,4 @@ type Balance struct {
 
 var ErrUserNotFound = errors.New("user not found")
 var ErrAlreadyExists = errors.New("user already exists")
+var ErrNegativeAmount = errors.New("negative amount")

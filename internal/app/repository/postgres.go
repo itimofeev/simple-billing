@@ -42,8 +42,12 @@ func (r *Repository) CreateUser(tx pg.DBI, userID int64) error {
 	return err
 }
 
-func (r *Repository) GetBalance(tx pg.DBI, userID int64) (balance model.Balance, err error) {
-	if err := tx.Model(&balance).Where("id = ?", userID).Select(); err != nil {
+func (r *Repository) GetBalance(tx pg.DBI, userID int64, withLock bool) (balance model.Balance, err error) {
+	query := tx.Model(&balance).Where("id = ?", userID)
+	if withLock {
+		query = query.For("UPDATE")
+	}
+	if err := query.Select(); err != nil {
 		if errors.Is(err, pg.ErrNoRows) {
 			err = model.ErrUserNotFound
 		}
@@ -52,13 +56,12 @@ func (r *Repository) GetBalance(tx pg.DBI, userID int64) (balance model.Balance,
 	return balance, nil
 }
 
-func (r *Repository) UpdateBalance(ctx context.Context, userID, amount int64) (balance model.Balance, err error) {
-	// nolint
-	//	_, err := s.db.Model(&app).WherePK().Set("history_time = now()").Update()
-	if err := r.db.WithContext(ctx).Model(&balance).Where("id = ?", userID).Select(); err != nil {
-		return model.Balance{}, fmt.Errorf("[postgres] error on getting balance: %w", err)
+func (r *Repository) UpdateBalance(tx pg.DBI, userID int64, newBalance int64) error {
+	balance := model.Balance{
+		UserID: userID,
 	}
-	return balance, nil
+	_, err := tx.Model(&balance).WherePK().Set("balance = ?", newBalance).Update()
+	return err
 }
 
 func (r *Repository) DoInTX(ctx context.Context, f func(tx pg.DBI) error) error {

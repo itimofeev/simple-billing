@@ -50,3 +50,21 @@ func (s *ServiceSuite) Test_GetBalanceOK_IfUserExists() {
 
 	s.Require().Equal(expected, balance)
 }
+
+func (s *ServiceSuite) Test_Deposit() {
+	userID := rand.Int63()
+	s.Require().NoError(s.srv.CreateAccount(s.ctx, userID))
+
+	err := s.srv.Deposit(s.ctx, userID, 10)
+	s.Require().NoError(err)
+
+	balance, err := s.srv.GetBalance(s.ctx, userID)
+	s.Require().NoError(err)
+
+	expected := model.Balance{
+		UserID:  userID,
+		Balance: 10,
+	}
+
+	s.Require().Equal(expected, balance)
+}
