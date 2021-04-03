@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"math/rand"
+	"strconv"
+	"time"
 
 	"github.com/go-pg/pg/v10"
 
@@ -14,8 +17,10 @@ type Repository interface {
 
 	GetDB(ctx context.Context) pg.DBI
 	DoInTX(ctx context.Context, f func(tx pg.DBI) error) error
-	CreateUser(tx pg.DBI, userID int64) error
+	CreateAccount(tx pg.DBI, userID int64) error
 	UpdateBalance(tx pg.DBI, userID, newBalance int64) error
+
+	AddEvent(tx pg.DBI, event model.Event) error
 }
 
 type Service struct {
@@ -36,7 +41,17 @@ func (s *Service) CreateAccount(ctx context.Context, userID int64) error {
 			return err
 		}
 
-		return s.r.CreateUser(tx, userID)
+		if err := s.r.CreateAccount(tx, userID); err != nil {
+			return err
+		}
+
+		event := model.Event{
+			Type:        model.EventTypeOpen,
+			FromUserID:  userID,
+			CreatedTime: time.Now(),
+			QueueID:     strconv.FormatInt(rand.Int63(), 10),
+		}
+		return s.r.AddEvent(tx, event)
 	})
 }
 
@@ -50,7 +65,18 @@ func (s *Service) Deposit(ctx context.Context, userID, amount int64) error {
 			return err
 		}
 
-		return s.r.UpdateBalance(tx, userID, balance.Balance+amount)
+		if err := s.r.UpdateBalance(tx, userID, balance.Balance+amount); err != nil {
+			return err
+		}
+
+		event := model.Event{
+			Type:        model.EventTypeDeposit,
+			FromUserID:  userID,
+			Amount:      &amount,
+			CreatedTime: time.Now(),
+			QueueID:     strconv.FormatInt(rand.Int63(), 10),
+		}
+		return s.r.AddEvent(tx, event)
 	})
 }
 
@@ -67,7 +93,18 @@ func (s *Service) Withdraw(ctx context.Context, userID, amount int64) error {
 			return model.ErrNegativeBalance
 		}
 
-		return s.r.UpdateBalance(tx, userID, balance.Balance-amount)
+		if err := s.r.UpdateBalance(tx, userID, balance.Balance-amount); err != nil {
+			return err
+		}
+
+		event := model.Event{
+			Type:        model.EventTypeWithdraw,
+			FromUserID:  userID,
+			Amount:      &amount,
+			CreatedTime: time.Now(),
+			QueueID:     strconv.FormatInt(rand.Int63(), 10),
+		}
+		return s.r.AddEvent(tx, event)
 	})
 }
 
@@ -98,6 +135,18 @@ func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int
 			return err
 		}
 
-		return s.r.UpdateBalance(tx, toUserID, toBalance.Balance+amount)
+		if err := s.r.UpdateBalance(tx, toUserID, toBalance.Balance+amount); err != nil {
+			return err
+		}
+
+		event := model.Event{
+			Type:        model.EventTypeTransfer,
+			FromUserID:  fromUserID,
+			ToUserID:    &toUserID,
+			Amount:      &amount,
+			CreatedTime: time.Now(),
+			QueueID:     strconv.FormatInt(rand.Int63(), 10),
+		}
+		return s.r.AddEvent(tx, event)
 	})
 }

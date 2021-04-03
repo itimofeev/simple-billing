@@ -1,11 +1,15 @@
 
 
 db: stop-db
-	docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=password --name=db postgres:13
+	docker network create billing
 
+	docker run -d --network=billing  -p 5432:5432 -e POSTGRES_PASSWORD=password --name=db postgres:13
+	docker run -d --network=billing -p 4222:4222 -p 8222:8222 -p 6222:6222 --name queue nats-streaming:0.21
+	docker run -d --network=billing -p 8282:8282 --name queue-ui kuali/nats-streaming-console
 
 stop-db:
-	docker rm -f db || true
+	docker rm -f db queue queue-ui || true
+	docker network rm billing || true
 
 lint:
 	#go get golang.org/x/tools/cmd/goimports

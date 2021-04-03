@@ -33,14 +33,43 @@ func getMigrations() *migrations.Collection {
 }
 
 func getSQLs() []string {
-	return []string{`
+	return []string{
+		`
 DROP TABLE IF EXISTS balances;
 
 CREATE TABLE balances
 (
-    id      BIGSERIAL PRIMARY KEY,
-    balance BIGINT NOT NULL
+    id      BIGSERIAL NOT NULL PRIMARY KEY,
+    balance BIGINT NOT NULL,
+    CHECK ( balance >= 0 )
 );
-	`,
+`,
+
+		`DROP TABLE IF EXISTS events;
+
+CREATE TABLE events
+(
+    id              BIGSERIAL PRIMARY KEY      NOT NULL,
+
+    type            VARCHAR(32)                NOT NULL,
+
+    from_user_id    BIGINT REFERENCES balances NOT NULL,
+    to_user_id      BIGINT REFERENCES balances,
+    amount          BIGINT,
+
+    created_time    timestamptz                NOT NULL,
+
+    queue_id        VARCHAR(128) UNIQUE        NOT NULL,
+    queue_sent_time timestamptz,
+
+    CHECK (type IN ('open', 'deposit', 'withdraw', 'transfer')),
+    CHECK (type = 'transfer' OR to_user_id IS NULL),
+    CHECK (type <> 'transfer' OR to_user_id IS NOT NULL),
+    CHECK (type = 'open' OR amount IS NOT NULL),
+    CHECK (type <> 'open' OR amount IS NULL)
+);
+
+CREATE UNIQUE INDEX events__queue_id__idx ON events (queue_id);
+`,
 	}
 }

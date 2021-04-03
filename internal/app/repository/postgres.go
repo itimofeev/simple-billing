@@ -34,7 +34,7 @@ func New(url string) *Repository {
 	}
 }
 
-func (r *Repository) CreateUser(tx pg.DBI, userID int64) error {
+func (r *Repository) CreateAccount(tx pg.DBI, userID int64) error {
 	_, err := tx.Model(&model.Balance{
 		UserID:  userID,
 		Balance: 0,

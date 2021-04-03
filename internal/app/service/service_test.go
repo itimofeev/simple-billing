@@ -52,6 +52,8 @@ func (s *ServiceSuite) Test_GetBalanceOK_IfUserExists() {
 	}
 
 	s.Require().Equal(expected, balance)
+
+	s.checkUserEvents(s.userID, model.EventTypeOpen)
 }
 
 func (s *ServiceSuite) Test_Deposit() {
@@ -69,6 +71,8 @@ func (s *ServiceSuite) Test_Deposit() {
 	}
 
 	s.Require().Equal(expected, balance)
+
+	s.checkUserEvents(s.userID, model.EventTypeOpen, model.EventTypeDeposit)
 }
 
 func (s *ServiceSuite) Test_Withdraw() {
@@ -89,6 +93,9 @@ func (s *ServiceSuite) Test_Withdraw() {
 	}
 
 	s.Require().Equal(expected, balance)
+
+	s.checkUserEvents(s.userID, model.EventTypeOpen, model.EventTypeDeposit, model.EventTypeWithdraw)
+
 }
 
 func (s *ServiceSuite) Test_ErrorOnWithdraw_IfNegativeBalance() {
@@ -96,6 +103,8 @@ func (s *ServiceSuite) Test_ErrorOnWithdraw_IfNegativeBalance() {
 
 	err := s.srv.Withdraw(s.ctx, s.userID, 3)
 	s.Require().ErrorIs(err, model.ErrNegativeBalance)
+
+	s.checkUserEvents(s.userID, model.EventTypeOpen)
 }
 
 func (s *ServiceSuite) Test_Transfer() {
@@ -114,4 +123,15 @@ func (s *ServiceSuite) Test_Transfer() {
 	balance2, err := s.srv.GetBalance(s.ctx, userID2)
 	s.Require().NoError(err)
 	s.Require().EqualValues(40, balance2.Balance)
+
+	s.checkUserEvents(s.userID, model.EventTypeOpen, model.EventTypeDeposit, model.EventTypeTransfer)
+}
+
+func (s *ServiceSuite) checkUserEvents(userID int64, eventTypes ...model.EventType) {
+	events, err := s.repo.ListEventsByFromUserID(s.repo.GetDB(s.ctx), userID)
+	s.Require().NoError(err)
+	s.Require().Len(events, len(eventTypes))
+	for i := range events {
+		s.Require().Equal(eventTypes[i], events[i].Type)
+	}
 }
