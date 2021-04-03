@@ -20,7 +20,7 @@ func New(url string) *Repository {
 		panic(err)
 	}
 	db := pg.Connect(opts)
-	db.AddQueryHook(dbLogger{})
+	db.AddQueryHook(dbLogger{enabled: false})
 	if err := db.Ping(context.Background()); err != nil {
 		panic(err)
 	}
