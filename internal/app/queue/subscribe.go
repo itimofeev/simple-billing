@@ -43,10 +43,8 @@ func (q *Queue) SubscribeCommand(ctx context.Context, f func(ctx context.Context
 }
 
 func unsubscribeIfContextClosed(ctx context.Context, sub stan.Subscription) {
-	select {
-	case <-ctx.Done():
-		_ = sub.Close()
-	}
+	<-ctx.Done()
+	_ = sub.Close()
 }
 
 func (q *Queue) SubscribeOperationCompleted(ctx context.Context, f func(ctx context.Context, event model.Event) error) error {

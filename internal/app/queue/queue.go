@@ -13,7 +13,7 @@ type Queue struct {
 }
 
 // nats://localhost:4222
-func New(log *logrus.Logger, url string, clientID string) (*Queue, error) {
+func New(log *logrus.Logger, url, clientID string) (*Queue, error) {
 	// Connect to a server
 	sc, err := stan.Connect("test-cluster", clientID, stan.NatsURL(url))
 	if err != nil {

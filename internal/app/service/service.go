@@ -22,14 +22,14 @@ type Repository interface {
 	CreateAccount(tx pg.DBI, userID int64) error
 	UpdateBalance(tx pg.DBI, userID, newBalance int64) error
 
-	AddEvent(tx pg.DBI, event model.Event) (model.Event, error)
+	AddEvent(tx pg.DBI, event *model.Event) (*model.Event, error)
 
-	SetMessageID(tx pg.DBI, event model.Event, messageID string) error
+	SetMessageID(tx pg.DBI, event *model.Event, messageID string) error
 	SetMessageSent(tx pg.DBI, messageID string, now time.Time) error
 }
 
 type Queue interface {
-	PublishOperationCompleted(_ context.Context, event model.Event, handler stan.AckHandler) (string, error)
+	PublishOperationCompleted(_ context.Context, event *model.Event, handler stan.AckHandler) (string, error)
 }
 
 type Service struct {
@@ -42,7 +42,7 @@ func New(r Repository, q Queue) *Service {
 }
 
 func (s *Service) CreateAccount(ctx context.Context, userID int64) error {
-	var event model.Event
+	var event *model.Event
 	err := s.r.DoInTX(ctx, func(tx pg.DBI) error {
 		_, err := s.r.GetBalance(tx, userID, true)
 		if err == nil {
@@ -56,7 +56,7 @@ func (s *Service) CreateAccount(ctx context.Context, userID int64) error {
 			return err
 		}
 
-		event = model.Event{
+		event = &model.Event{
 			Type:        model.EventTypeOpen,
 			FromUserID:  userID,
 			CreatedTime: time.Now(),
@@ -76,7 +76,7 @@ func (s *Service) Deposit(ctx context.Context, userID, amount int64) error {
 	if amount < 0 {
 		return model.ErrNegativeAmount
 	}
-	var event model.Event
+	var event *model.Event
 	err := s.r.DoInTX(ctx, func(tx pg.DBI) error {
 		balance, err := s.r.GetBalance(tx, userID, true)
 		if err != nil {
@@ -87,7 +87,7 @@ func (s *Service) Deposit(ctx context.Context, userID, amount int64) error {
 			return err
 		}
 
-		event = model.Event{
+		event = &model.Event{
 			Type:        model.EventTypeDeposit,
 			FromUserID:  userID,
 			Amount:      &amount,
@@ -109,7 +109,7 @@ func (s *Service) Withdraw(ctx context.Context, userID, amount int64) error {
 	if amount < 0 {
 		return model.ErrNegativeAmount
 	}
-	var event model.Event
+	var event *model.Event
 	err := s.r.DoInTX(ctx, func(tx pg.DBI) error {
 		balance, err := s.r.GetBalance(tx, userID, true)
 		if err != nil {
@@ -123,7 +123,7 @@ func (s *Service) Withdraw(ctx context.Context, userID, amount int64) error {
 			return err
 		}
 
-		event := model.Event{
+		event = &model.Event{
 			Type:        model.EventTypeWithdraw,
 			FromUserID:  userID,
 			Amount:      &amount,
@@ -149,7 +149,7 @@ func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int
 	if amount < 0 {
 		return model.ErrNegativeAmount
 	}
-	var event model.Event
+	var event *model.Event
 	err := s.r.DoInTX(ctx, func(tx pg.DBI) error {
 		fromBalance, err := s.r.GetBalance(tx, fromUserID, true)
 		if err != nil {
@@ -172,7 +172,7 @@ func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int
 			return err
 		}
 
-		event = model.Event{
+		event = &model.Event{
 			Type:        model.EventTypeTransfer,
 			FromUserID:  fromUserID,
 			ToUserID:    &toUserID,
@@ -191,7 +191,7 @@ func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int
 	return s.SendEvent(ctx, event)
 }
 
-func (s *Service) SendEvent(ctx context.Context, event model.Event) error {
+func (s *Service) SendEvent(ctx context.Context, event *model.Event) error {
 	messageID, err := s.q.PublishOperationCompleted(ctx, event, s.ackHandler)
 	if err != nil {
 		return err

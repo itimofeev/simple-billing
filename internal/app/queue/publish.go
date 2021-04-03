@@ -9,7 +9,7 @@ import (
 	"github.com/itimofeev/simple-billing/internal/app/model"
 )
 
-func (q *Queue) PublishOperationCompleted(_ context.Context, event model.Event, handler stan.AckHandler) (string, error) {
+func (q *Queue) PublishOperationCompleted(_ context.Context, event *model.Event, handler stan.AckHandler) (string, error) {
 	msgData, err := marshalObject(event)
 	if err != nil {
 		return "", err

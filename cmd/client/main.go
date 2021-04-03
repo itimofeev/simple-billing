@@ -75,7 +75,6 @@ func main() {
 	}
 
 	log.Info(ctx, "graceful shutdown successfully finished")
-
 }
 
 func intPtr(i int) *int64 {

@@ -116,7 +116,6 @@ func (s *ServiceSuite) Test_Withdraw() {
 	s.Require().Equal(expected, balance)
 
 	s.checkUserEvents(s.userID, model.EventTypeOpen, model.EventTypeDeposit, model.EventTypeWithdraw)
-
 }
 
 func (s *ServiceSuite) Test_ErrorOnWithdraw_IfNegativeBalance() {
