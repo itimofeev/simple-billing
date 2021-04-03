@@ -68,3 +68,32 @@ func (s *ServiceSuite) Test_Deposit() {
 
 	s.Require().Equal(expected, balance)
 }
+
+func (s *ServiceSuite) Test_Withdraw() {
+	userID := rand.Int63()
+	s.Require().NoError(s.srv.CreateAccount(s.ctx, userID))
+
+	err := s.srv.Deposit(s.ctx, userID, 10)
+	s.Require().NoError(err)
+
+	err = s.srv.Withdraw(s.ctx, userID, 3)
+	s.Require().NoError(err)
+
+	balance, err := s.srv.GetBalance(s.ctx, userID)
+	s.Require().NoError(err)
+
+	expected := model.Balance{
+		UserID:  userID,
+		Balance: 7,
+	}
+
+	s.Require().Equal(expected, balance)
+}
+
+func (s *ServiceSuite) Test_ErrorOnWithdraw_IfNegativeBalance() {
+	userID := rand.Int63()
+	s.Require().NoError(s.srv.CreateAccount(s.ctx, userID))
+
+	err := s.srv.Withdraw(s.ctx, userID, 3)
+	s.Require().ErrorIs(err, model.ErrNegativeBalance)
+}

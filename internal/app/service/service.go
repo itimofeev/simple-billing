@@ -15,7 +15,7 @@ type Repository interface {
 	GetDB(ctx context.Context) pg.DBI
 	DoInTX(ctx context.Context, f func(tx pg.DBI) error) error
 	CreateUser(tx pg.DBI, userID int64) error
-	UpdateBalance(tx pg.DBI, userID int64, newBalance int64) error
+	UpdateBalance(tx pg.DBI, userID, newBalance int64) error
 }
 
 type Service struct {
@@ -51,6 +51,23 @@ func (s *Service) Deposit(ctx context.Context, userID, amount int64) error {
 		}
 
 		return s.r.UpdateBalance(tx, userID, balance.Balance+amount)
+	})
+}
+
+func (s *Service) Withdraw(ctx context.Context, userID, amount int64) error {
+	if amount < 0 {
+		return model.ErrNegativeAmount
+	}
+	return s.r.DoInTX(ctx, func(tx pg.DBI) error {
+		balance, err := s.r.GetBalance(tx, userID, true)
+		if err != nil {
+			return err
+		}
+		if balance.Balance-amount < 0 {
+			return model.ErrNegativeBalance
+		}
+
+		return s.r.UpdateBalance(tx, userID, balance.Balance-amount)
 	})
 }
 

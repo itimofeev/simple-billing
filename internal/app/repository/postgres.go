@@ -56,7 +56,7 @@ func (r *Repository) GetBalance(tx pg.DBI, userID int64, withLock bool) (balance
 	return balance, nil
 }
 
-func (r *Repository) UpdateBalance(tx pg.DBI, userID int64, newBalance int64) error {
+func (r *Repository) UpdateBalance(tx pg.DBI, userID, newBalance int64) error {
 	balance := model.Balance{
 		UserID: userID,
 	}
