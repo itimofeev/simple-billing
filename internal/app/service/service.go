@@ -75,7 +75,7 @@ func (s *Service) GetBalance(ctx context.Context, userID int64) (model.Balance, 
 	return s.r.GetBalance(s.r.GetDB(ctx), userID, false)
 }
 
-func (s *Service) Transfer(ctx context.Context, fromUserID int64, toUserID, amount int64) error {
+func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int64) error {
 	if amount < 0 {
 		return model.ErrNegativeAmount
 	}
