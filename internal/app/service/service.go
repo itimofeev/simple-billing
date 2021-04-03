@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"strconv"
 	"time"
 
 	"github.com/go-pg/pg/v10"
+	"github.com/nats-io/stan.go"
 
 	"github.com/itimofeev/simple-billing/internal/app/model"
 )
@@ -20,19 +22,28 @@ type Repository interface {
 	CreateAccount(tx pg.DBI, userID int64) error
 	UpdateBalance(tx pg.DBI, userID, newBalance int64) error
 
-	AddEvent(tx pg.DBI, event model.Event) error
+	AddEvent(tx pg.DBI, event model.Event) (model.Event, error)
+
+	SetMessageID(tx pg.DBI, event model.Event, messageID string) error
+	SetMessageSent(tx pg.DBI, messageID string, now time.Time) error
+}
+
+type Queue interface {
+	Publish(_ context.Context, event model.Event, handler stan.AckHandler) (string, error)
 }
 
 type Service struct {
 	r Repository
+	q Queue
 }
 
-func New(r Repository) *Service {
-	return &Service{r: r}
+func New(r Repository, q Queue) *Service {
+	return &Service{r: r, q: q}
 }
 
 func (s *Service) CreateAccount(ctx context.Context, userID int64) error {
-	return s.r.DoInTX(ctx, func(tx pg.DBI) error {
+	var event model.Event
+	err := s.r.DoInTX(ctx, func(tx pg.DBI) error {
 		_, err := s.r.GetBalance(tx, userID, true)
 		if err == nil {
 			return model.ErrAlreadyExists
@@ -45,21 +56,28 @@ func (s *Service) CreateAccount(ctx context.Context, userID int64) error {
 			return err
 		}
 
-		event := model.Event{
+		event = model.Event{
 			Type:        model.EventTypeOpen,
 			FromUserID:  userID,
 			CreatedTime: time.Now(),
 			QueueID:     strconv.FormatInt(rand.Int63(), 10),
 		}
-		return s.r.AddEvent(tx, event)
+		event, err = s.r.AddEvent(tx, event)
+		return err
 	})
+	if err != nil {
+		return err
+	}
+
+	return s.SendEvent(ctx, event)
 }
 
 func (s *Service) Deposit(ctx context.Context, userID, amount int64) error {
 	if amount < 0 {
 		return model.ErrNegativeAmount
 	}
-	return s.r.DoInTX(ctx, func(tx pg.DBI) error {
+	var event model.Event
+	err := s.r.DoInTX(ctx, func(tx pg.DBI) error {
 		balance, err := s.r.GetBalance(tx, userID, true)
 		if err != nil {
 			return err
@@ -69,22 +87,30 @@ func (s *Service) Deposit(ctx context.Context, userID, amount int64) error {
 			return err
 		}
 
-		event := model.Event{
+		event = model.Event{
 			Type:        model.EventTypeDeposit,
 			FromUserID:  userID,
 			Amount:      &amount,
 			CreatedTime: time.Now(),
 			QueueID:     strconv.FormatInt(rand.Int63(), 10),
 		}
-		return s.r.AddEvent(tx, event)
+		event, err = s.r.AddEvent(tx, event)
+		return err
 	})
+
+	if err != nil {
+		return err
+	}
+
+	return s.SendEvent(ctx, event)
 }
 
 func (s *Service) Withdraw(ctx context.Context, userID, amount int64) error {
 	if amount < 0 {
 		return model.ErrNegativeAmount
 	}
-	return s.r.DoInTX(ctx, func(tx pg.DBI) error {
+	var event model.Event
+	err := s.r.DoInTX(ctx, func(tx pg.DBI) error {
 		balance, err := s.r.GetBalance(tx, userID, true)
 		if err != nil {
 			return err
@@ -104,8 +130,15 @@ func (s *Service) Withdraw(ctx context.Context, userID, amount int64) error {
 			CreatedTime: time.Now(),
 			QueueID:     strconv.FormatInt(rand.Int63(), 10),
 		}
-		return s.r.AddEvent(tx, event)
+		event, err = s.r.AddEvent(tx, event)
+		return err
 	})
+
+	if err != nil {
+		return err
+	}
+
+	return s.SendEvent(ctx, event)
 }
 
 func (s *Service) GetBalance(ctx context.Context, userID int64) (model.Balance, error) {
@@ -116,8 +149,8 @@ func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int
 	if amount < 0 {
 		return model.ErrNegativeAmount
 	}
-
-	return s.r.DoInTX(ctx, func(tx pg.DBI) error {
+	var event model.Event
+	err := s.r.DoInTX(ctx, func(tx pg.DBI) error {
 		fromBalance, err := s.r.GetBalance(tx, fromUserID, true)
 		if err != nil {
 			return err
@@ -139,7 +172,7 @@ func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int
 			return err
 		}
 
-		event := model.Event{
+		event = model.Event{
 			Type:        model.EventTypeTransfer,
 			FromUserID:  fromUserID,
 			ToUserID:    &toUserID,
@@ -147,6 +180,27 @@ func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int
 			CreatedTime: time.Now(),
 			QueueID:     strconv.FormatInt(rand.Int63(), 10),
 		}
-		return s.r.AddEvent(tx, event)
+		event, err = s.r.AddEvent(tx, event)
+		return err
 	})
+
+	if err != nil {
+		return err
+	}
+
+	return s.SendEvent(ctx, event)
+}
+
+func (s *Service) SendEvent(ctx context.Context, event model.Event) error {
+	ackHandler := func(messageID string, err error) {
+		if err := s.r.SetMessageSent(s.r.GetDB(ctx), messageID, time.Now()); err != nil {
+			fmt.Println(err) // log
+		}
+	}
+	messageID, err := s.q.Publish(ctx, event, ackHandler)
+	if err != nil {
+		return err
+	}
+
+	return s.r.SetMessageID(s.r.GetDB(ctx), event, messageID)
 }

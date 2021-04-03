@@ -7,6 +7,6 @@ import (
 
 func main() {
 	repo := repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
-	srv := service.New(repo)
+	srv := service.New(repo, nil)
 	_ = srv
 }

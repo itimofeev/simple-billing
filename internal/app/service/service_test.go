@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/itimofeev/simple-billing/internal/app/model"
+	"github.com/itimofeev/simple-billing/internal/app/queue"
 	"github.com/itimofeev/simple-billing/internal/app/repository"
 )
 
@@ -18,6 +19,7 @@ type ServiceSuite struct {
 	repo   *repository.Repository
 	srv    *Service
 	userID int64
+	queue  *queue.Queue
 }
 
 func TestServiceSuite(t *testing.T) {
@@ -27,8 +29,16 @@ func TestServiceSuite(t *testing.T) {
 func (s *ServiceSuite) SetupSuite() {
 	rand.Seed(time.Now().UnixNano())
 	s.repo = repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
-	s.srv = New(s.repo)
+	q, err := queue.New("nats://localhost:4222")
+	s.Require().NoError(err)
+	s.queue = q
+
+	s.srv = New(s.repo, s.queue)
 	s.ctx = context.Background()
+}
+
+func (s *ServiceSuite) TearDownSuite() {
+	s.Require().NoError(s.queue.Close())
 }
 
 func (s *ServiceSuite) SetupTest() {

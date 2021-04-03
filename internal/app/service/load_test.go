@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/itimofeev/simple-billing/internal/app/queue"
 	"github.com/itimofeev/simple-billing/internal/app/repository"
 )
 
@@ -47,7 +48,9 @@ func TestLoad(t *testing.T) {
 	}
 
 	repo := repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
-	srv := New(repo)
+	q, err := queue.New("nats://localhost:4222")
+	require.NoError(t, err)
+	srv := New(repo, q)
 	ctx := context.Background()
 
 	wp := newWorkerPool(4, 0)
