@@ -14,9 +14,10 @@ import (
 
 type ServiceSuite struct {
 	suite.Suite
-	ctx  context.Context
-	repo *repository.Repository
-	srv  *Service
+	ctx    context.Context
+	repo   *repository.Repository
+	srv    *Service
+	userID int64
 }
 
 func TestServiceSuite(t *testing.T) {
@@ -30,21 +31,23 @@ func (s *ServiceSuite) SetupSuite() {
 	s.ctx = context.Background()
 }
 
+func (s *ServiceSuite) SetupTest() {
+	s.userID = rand.Int63()
+}
+
 func (s *ServiceSuite) Test_ErrorOnGetBalance_IfUserNotFound() {
-	userID := rand.Int63()
-	_, err := s.srv.GetBalance(s.ctx, userID)
+	_, err := s.srv.GetBalance(s.ctx, s.userID)
 	s.Require().ErrorIs(err, model.ErrUserNotFound)
 }
 
 func (s *ServiceSuite) Test_GetBalanceOK_IfUserExists() {
-	userID := rand.Int63()
-	s.Require().NoError(s.srv.CreateAccount(s.ctx, userID))
+	s.Require().NoError(s.srv.CreateAccount(s.ctx, s.userID))
 
-	balance, err := s.srv.GetBalance(s.ctx, userID)
+	balance, err := s.srv.GetBalance(s.ctx, s.userID)
 	s.Require().NoError(err)
 
 	expected := model.Balance{
-		UserID:  userID,
+		UserID:  s.userID,
 		Balance: 0,
 	}
 
@@ -52,17 +55,16 @@ func (s *ServiceSuite) Test_GetBalanceOK_IfUserExists() {
 }
 
 func (s *ServiceSuite) Test_Deposit() {
-	userID := rand.Int63()
-	s.Require().NoError(s.srv.CreateAccount(s.ctx, userID))
+	s.Require().NoError(s.srv.CreateAccount(s.ctx, s.userID))
 
-	err := s.srv.Deposit(s.ctx, userID, 10)
+	err := s.srv.Deposit(s.ctx, s.userID, 10)
 	s.Require().NoError(err)
 
-	balance, err := s.srv.GetBalance(s.ctx, userID)
+	balance, err := s.srv.GetBalance(s.ctx, s.userID)
 	s.Require().NoError(err)
 
 	expected := model.Balance{
-		UserID:  userID,
+		UserID:  s.userID,
 		Balance: 10,
 	}
 
@@ -70,20 +72,19 @@ func (s *ServiceSuite) Test_Deposit() {
 }
 
 func (s *ServiceSuite) Test_Withdraw() {
-	userID := rand.Int63()
-	s.Require().NoError(s.srv.CreateAccount(s.ctx, userID))
+	s.Require().NoError(s.srv.CreateAccount(s.ctx, s.userID))
 
-	err := s.srv.Deposit(s.ctx, userID, 10)
+	err := s.srv.Deposit(s.ctx, s.userID, 10)
 	s.Require().NoError(err)
 
-	err = s.srv.Withdraw(s.ctx, userID, 3)
+	err = s.srv.Withdraw(s.ctx, s.userID, 3)
 	s.Require().NoError(err)
 
-	balance, err := s.srv.GetBalance(s.ctx, userID)
+	balance, err := s.srv.GetBalance(s.ctx, s.userID)
 	s.Require().NoError(err)
 
 	expected := model.Balance{
-		UserID:  userID,
+		UserID:  s.userID,
 		Balance: 7,
 	}
 
@@ -91,9 +92,26 @@ func (s *ServiceSuite) Test_Withdraw() {
 }
 
 func (s *ServiceSuite) Test_ErrorOnWithdraw_IfNegativeBalance() {
-	userID := rand.Int63()
-	s.Require().NoError(s.srv.CreateAccount(s.ctx, userID))
+	s.Require().NoError(s.srv.CreateAccount(s.ctx, s.userID))
 
-	err := s.srv.Withdraw(s.ctx, userID, 3)
+	err := s.srv.Withdraw(s.ctx, s.userID, 3)
 	s.Require().ErrorIs(err, model.ErrNegativeBalance)
+}
+
+func (s *ServiceSuite) Test_Transfer() {
+	s.Require().NoError(s.srv.CreateAccount(s.ctx, s.userID))
+	userID2 := rand.Int63()
+	s.Require().NoError(s.srv.CreateAccount(s.ctx, userID2))
+
+	s.Require().NoError(s.srv.Deposit(s.ctx, s.userID, 100))
+
+	s.Require().NoError(s.srv.Transfer(s.ctx, s.userID, userID2, 40))
+
+	balance1, err := s.srv.GetBalance(s.ctx, s.userID)
+	s.Require().NoError(err)
+	s.Require().EqualValues(60, balance1.Balance)
+
+	balance2, err := s.srv.GetBalance(s.ctx, userID2)
+	s.Require().NoError(err)
+	s.Require().EqualValues(40, balance2.Balance)
 }

@@ -74,3 +74,30 @@ func (s *Service) Withdraw(ctx context.Context, userID, amount int64) error {
 func (s *Service) GetBalance(ctx context.Context, userID int64) (model.Balance, error) {
 	return s.r.GetBalance(s.r.GetDB(ctx), userID, false)
 }
+
+func (s *Service) Transfer(ctx context.Context, fromUserID int64, toUserID, amount int64) error {
+	if amount < 0 {
+		return model.ErrNegativeAmount
+	}
+
+	return s.r.DoInTX(ctx, func(tx pg.DBI) error {
+		fromBalance, err := s.r.GetBalance(tx, fromUserID, true)
+		if err != nil {
+			return err
+		}
+		if fromBalance.Balance-amount < 0 {
+			return model.ErrNegativeBalance
+		}
+
+		toBalance, err := s.r.GetBalance(tx, toUserID, true)
+		if err != nil {
+			return err
+		}
+
+		if err := s.r.UpdateBalance(tx, fromUserID, fromBalance.Balance-amount); err != nil {
+			return err
+		}
+
+		return s.r.UpdateBalance(tx, toUserID, toBalance.Balance+amount)
+	})
+}
