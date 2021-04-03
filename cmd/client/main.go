@@ -38,19 +38,34 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		err := q.PublishCommand(ctx, model.Command{
+		_ = publishCommand(ctx, log, q, model.Command{
 			ID:         1,
+			Type:       model.CommandTypeOpen,
+			FromUserID: 1,
+			ToUserID:   nil,
+			Amount:     nil,
+		})
+		_ = publishCommand(ctx, log, q, model.Command{
+			ID:         2,
 			Type:       model.CommandTypeOpen,
 			FromUserID: 2,
 			ToUserID:   nil,
 			Amount:     nil,
 		})
-
-		if err != nil {
-			log.WithError(err).Error("error on publishing command")
-			return err
-		}
-		log.Info("command published")
+		_ = publishCommand(ctx, log, q, model.Command{
+			ID:         3,
+			Type:       model.CommandTypeDeposit,
+			FromUserID: 1,
+			ToUserID:   nil,
+			Amount:     intPtr(777),
+		})
+		_ = publishCommand(ctx, log, q, model.Command{
+			ID:         3,
+			Type:       model.CommandTypeTransfer,
+			FromUserID: 1,
+			ToUserID:   intPtr(2),
+			Amount:     intPtr(111),
+		})
 		return nil
 	})
 
@@ -61,6 +76,22 @@ func main() {
 
 	log.Info(ctx, "graceful shutdown successfully finished")
 
+}
+
+func intPtr(i int) *int64 {
+	i64 := int64(i)
+	return &i64
+}
+
+func publishCommand(ctx context.Context, log *logrus.Logger, q *queue.Queue, command model.Command) error {
+	err := q.PublishCommand(ctx, command)
+
+	if err != nil {
+		log.WithError(err).Error("error on publishing command")
+		return err
+	}
+	log.Info("command published")
+	return nil
 }
 
 func newLogger() *logrus.Logger {

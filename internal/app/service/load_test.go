@@ -36,9 +36,16 @@ type task struct {
 // that means that there were no races
 func TestLoad(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	count := 1000
+	count := 200
 
-	log := newLogger()
+	log := &logrus.Logger{
+		Out:          os.Stdout,
+		Formatter:    new(logrus.TextFormatter),
+		Hooks:        make(logrus.LevelHooks),
+		Level:        logrus.DebugLevel,
+		ExitFunc:     os.Exit,
+		ReportCaller: false,
+	}
 
 	repo := repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
 	q, err := queue.New(log, "nats://localhost:4222", "client-worker-test")
@@ -99,17 +106,6 @@ func TestLoad(t *testing.T) {
 
 	require.EqualValues(t, count, balance1.Balance)
 	require.EqualValues(t, count, balance2.Balance)
-}
-
-func newLogger() *logrus.Logger {
-	return &logrus.Logger{
-		Out:          os.Stdout,
-		Formatter:    new(logrus.TextFormatter),
-		Hooks:        make(logrus.LevelHooks),
-		Level:        logrus.DebugLevel,
-		ExitFunc:     os.Exit,
-		ReportCaller: false,
-	}
 }
 
 type workerPool struct {

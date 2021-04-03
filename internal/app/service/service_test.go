@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
@@ -30,9 +31,16 @@ func TestServiceSuite(t *testing.T) {
 
 func (s *ServiceSuite) SetupSuite() {
 	rand.Seed(time.Now().UnixNano())
-	s.log = newLogger()
 	s.repo = repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
-	q, err := queue.New(s.log, "nats://localhost:4222", "client-worker-test")
+	s.log = &logrus.Logger{
+		Out:          os.Stdout,
+		Formatter:    new(logrus.TextFormatter),
+		Hooks:        make(logrus.LevelHooks),
+		Level:        logrus.DebugLevel,
+		ExitFunc:     os.Exit,
+		ReportCaller: false,
+	}
+	q, err := queue.New(s.log, "nats://localhost:4222", "client-worker-load-test")
 	s.Require().NoError(err)
 	s.queue = q
 
