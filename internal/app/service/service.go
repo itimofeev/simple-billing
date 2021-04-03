@@ -192,15 +192,20 @@ func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int
 }
 
 func (s *Service) SendEvent(ctx context.Context, event model.Event) error {
-	ackHandler := func(messageID string, err error) {
-		if err := s.r.SetMessageSent(s.r.GetDB(ctx), messageID, time.Now()); err != nil {
-			fmt.Println(err) // log
-		}
-	}
-	messageID, err := s.q.Publish(ctx, event, ackHandler)
+	messageID, err := s.q.Publish(ctx, event, s.ackHandler)
 	if err != nil {
 		return err
 	}
 
 	return s.r.SetMessageID(s.r.GetDB(ctx), event, messageID)
+}
+
+func (s *Service) ackHandler(messageID string, err error) {
+	if err != nil {
+		fmt.Println(err) // log
+		return
+	}
+	if err := s.r.SetMessageSent(s.r.GetDB(context.Background()), messageID, time.Now()); err != nil {
+		fmt.Println(err) // log
+	}
 }
