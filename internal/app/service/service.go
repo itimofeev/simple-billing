@@ -29,7 +29,7 @@ type Repository interface {
 }
 
 type Queue interface {
-	Publish(_ context.Context, event model.Event, handler stan.AckHandler) (string, error)
+	PublishOperationCompleted(_ context.Context, event model.Event, handler stan.AckHandler) (string, error)
 }
 
 type Service struct {
@@ -192,7 +192,7 @@ func (s *Service) Transfer(ctx context.Context, fromUserID, toUserID, amount int
 }
 
 func (s *Service) SendEvent(ctx context.Context, event model.Event) error {
-	messageID, err := s.q.Publish(ctx, event, s.ackHandler)
+	messageID, err := s.q.PublishOperationCompleted(ctx, event, s.ackHandler)
 	if err != nil {
 		return err
 	}

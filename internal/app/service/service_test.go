@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/itimofeev/simple-billing/internal/app/model"
@@ -20,6 +21,7 @@ type ServiceSuite struct {
 	srv    *Service
 	userID int64
 	queue  *queue.Queue
+	log    *logrus.Logger
 }
 
 func TestServiceSuite(t *testing.T) {
@@ -28,8 +30,9 @@ func TestServiceSuite(t *testing.T) {
 
 func (s *ServiceSuite) SetupSuite() {
 	rand.Seed(time.Now().UnixNano())
+	s.log = newLogger()
 	s.repo = repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
-	q, err := queue.New("nats://localhost:4222")
+	q, err := queue.New(s.log, "nats://localhost:4222", "client-worker-test")
 	s.Require().NoError(err)
 	s.queue = q
 

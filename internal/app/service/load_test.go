@@ -38,17 +38,10 @@ func TestLoad(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	count := 1000
 
-	log := &logrus.Logger{
-		Out:          os.Stdout,
-		Formatter:    new(logrus.TextFormatter),
-		Hooks:        make(logrus.LevelHooks),
-		Level:        logrus.DebugLevel,
-		ExitFunc:     os.Exit,
-		ReportCaller: false,
-	}
+	log := newLogger()
 
 	repo := repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
-	q, err := queue.New("nats://localhost:4222")
+	q, err := queue.New(log, "nats://localhost:4222", "client-worker-test")
 	require.NoError(t, err)
 	srv := New(repo, q)
 	ctx := context.Background()
@@ -106,6 +99,17 @@ func TestLoad(t *testing.T) {
 
 	require.EqualValues(t, count, balance1.Balance)
 	require.EqualValues(t, count, balance2.Balance)
+}
+
+func newLogger() *logrus.Logger {
+	return &logrus.Logger{
+		Out:          os.Stdout,
+		Formatter:    new(logrus.TextFormatter),
+		Hooks:        make(logrus.LevelHooks),
+		Level:        logrus.DebugLevel,
+		ExitFunc:     os.Exit,
+		ReportCaller: false,
+	}
 }
 
 type workerPool struct {

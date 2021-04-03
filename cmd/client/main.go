@@ -7,40 +7,52 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/itimofeev/simple-billing/internal/app/consumer"
+	"github.com/itimofeev/simple-billing/internal/app/model"
 	"github.com/itimofeev/simple-billing/internal/app/queue"
-	"github.com/itimofeev/simple-billing/internal/app/repository"
-	"github.com/itimofeev/simple-billing/internal/app/service"
 	"github.com/itimofeev/simple-billing/pkg/shutdown"
 )
 
 func main() {
 	log := newLogger()
 
-	repo := repository.New("postgresql://postgres:password@localhost:5432/postgres?sslmode=disable")
-	q, err := queue.New(log, "nats://localhost:4222", "worker")
+	q, err := queue.New(log, "nats://localhost:4222", "client")
 	if err != nil {
 		log.WithError(err).Panic("error on initializing queue")
 	}
 	defer q.Close()
 
-	srv := service.New(repo, q)
-	consume := consumer.New(log, srv, q)
-
 	ctx := context.Background()
+
 	eg, ctx := errgroup.WithContext(ctx)
 
-	sigHandler := shutdown.TermSignalTrap()
+	eg.Go(func() error {
+		return q.SubscribeOperationCompleted(ctx, func(ctx context.Context, event model.Event) error {
+			log.WithField("event", event).Info("operation completed")
+			return nil
+		})
+	})
 
+	sigHandler := shutdown.TermSignalTrap()
 	eg.Go(func() error {
 		return sigHandler.Wait(ctx)
 	})
 
 	eg.Go(func() error {
-		return consume.Start(ctx)
-	})
+		err := q.PublishCommand(ctx, model.Command{
+			ID:         1,
+			Type:       model.CommandTypeOpen,
+			FromUserID: 2,
+			ToUserID:   nil,
+			Amount:     nil,
+		})
 
-	log.Info("worker started")
+		if err != nil {
+			log.WithError(err).Error("error on publishing command")
+			return err
+		}
+		log.Info("command published")
+		return nil
+	})
 
 	err = eg.Wait()
 	if err != nil && err != shutdown.ErrTermSig && err != context.Canceled {
@@ -48,6 +60,7 @@ func main() {
 	}
 
 	log.Info(ctx, "graceful shutdown successfully finished")
+
 }
 
 func newLogger() *logrus.Logger {
